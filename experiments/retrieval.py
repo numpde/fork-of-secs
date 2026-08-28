@@ -7,6 +7,7 @@ import hydra
 import pandas as pd
 import pytorch_lightning as L
 import rootutils
+from datasets import load_dataset
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig
@@ -16,7 +17,14 @@ from secs.data.secs_dataset import SECSDataset, derive_modality_columns
 from secs.metrics.retrieval import full_database_retrieval
 from secs.models.lightning_module import SECSModule
 from secs.utils.embeddings import aggregate_embeddings
-from secs.utils.utils import HANDLERS as handlers
+
+DATASET_READERS = {
+    ".csv": pd.read_csv,
+    ".pickle": pd.read_pickle,
+    ".pkl": pd.read_pickle,
+    ".parquet": pd.read_parquet,
+    "": lambda path: load_dataset(path).to_pandas(),
+}
 
 load_dotenv()
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
@@ -38,7 +46,7 @@ def embed(config: DictConfig):
     data_format = Path(config.data.dataset_path).suffix
 
     try:
-        shuffled_data = handlers[data_format](config.data.dataset_path)
+        shuffled_data = DATASET_READERS[data_format](config.data.dataset_path)
     except KeyError:
         logger.error(f"Format {data_format} not supported")
 

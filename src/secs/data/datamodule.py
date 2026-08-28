@@ -1,9 +1,9 @@
 from typing import Literal
 
 import torch
-from lightning.pytorch.utilities.combined_loader import CombinedLoader
 from loguru import logger
 from pytorch_lightning import LightningDataModule
+from pytorch_lightning.utilities.combined_loader import CombinedLoader
 from torch.utils.data import DataLoader, DistributedSampler
 
 from secs.data.components.datasets import StringDatasetEmbedding

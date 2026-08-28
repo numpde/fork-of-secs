@@ -27,40 +27,42 @@ classifiers = [
 
 requires-python = ">=3.11, <3.13"
 dependencies = [
-  "faiss-cpu==1.13.2",
   "torch==2.10.0",
   "torch-geometric==2.7.0",
   "numpy==2.3.5",
   "scipy==1.16.3",
   "loguru==0.7.3",
   "transformers==4.41.2",
-  "datasets==4.8.4",
   "rdkit==2025.9.6",
-  "pyarrow==23.0.1",
-  "pandas==2.3.3",
-  "polars==1.39.2",
-  "polars-runtime-32==1.39.2",
-  "info-nce-pytorch==0.1.4",
   "hydra-core==1.3.2",
-  "lightning==2.6.0",
-  "pytorch-lightning==2.6.1",
-  "torchmetrics==1.9.0",
-  "rootutils==1.0.7",
   "class-resolver==0.7.1",
   "omegaconf==2.3.0",
-  "python-dotenv==1.2.2",
-  "wandb==0.25.1",
-  "ipykernel>=7.3.0",
-  "matplotlib>=3.11.1",
 ]
 
 [project.optional-dependencies]
 elucidation = [
-  # Graph genetic algorithm backend for secs.elucidation.optimizers.
+  "faiss-cpu==1.13.2",
   "mol_ga>=0.2.0",
+  "polars>=1.39.2",
+  "requests>=2.32.0",
+]
+training = [
+  "datasets==4.8.4",
+  "faiss-cpu==1.13.2",
+  "info-nce-pytorch==0.1.4",
+  "pandas==2.3.3",
+  "polars>=1.39.2",
+  "pyarrow==23.0.1",
+  "pytorch-lightning==2.6.1",
+  "python-dotenv==1.2.2",
+  "rootutils==1.0.7",
+  "torchmetrics==1.9.0",
+  "wandb==0.25.1",
 ]
 dev = [
   "codecov-cli>=0.4.1",
+  "ipykernel>=7.3.0",
+  "matplotlib>=3.11.1",
   "pytest>=7.4.0",
   "pytest-cov>=3.0.0",
   "ruff>=0.0.285",
@@ -182,6 +184,10 @@ no_implicit_optional = false
 disable_error_code = "annotation-unchecked"
 
 [dependency-groups]
-dev = [
-    "pyside6>=6.9.1",
+packages-build = ["setuptools"]
+packages-cpu = [
+  "torch @ https://download-r2.pytorch.org/whl/cpu/torch-2.10.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl#sha256=ee40b8a4b4b2cf0670c6fd4f35a7ef23871af956fecb238fbf5da15a72650b1d",
+]
+packages-gpu = [
+  "torch @ https://download-r2.pytorch.org/whl/cu130/torch-2.10.0%2Bcu130-cp312-cp312-manylinux_2_28_x86_64.whl#sha256=858f0cbcc78d726fea9499eb3464faa98392fa093845a3262209bd226b7844d6",
 ]

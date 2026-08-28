@@ -2,18 +2,8 @@ import os
 import re
 from typing import Any
 
-import pandas as pd
 import torch
-from datasets import load_dataset
 from loguru import logger
-
-HANDLERS = {
-    ".csv": pd.read_csv,
-    ".pickle": pd.read_pickle,
-    ".pkl": pd.read_pickle,
-    ".parquet": pd.read_parquet,
-    "": lambda x: load_dataset(x).to_pandas(),
-}
 
 
 def select_device() -> str:
