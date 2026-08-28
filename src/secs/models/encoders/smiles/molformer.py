@@ -1,5 +1,5 @@
 from torch import Tensor
-from transformers import AutoModel
+from transformers import AutoConfig, AutoModel
 
 from secs.models.base import HFCausalLMEncoder
 from secs.models.registry import register_encoder
@@ -18,7 +18,16 @@ class MolformerEncoder(HFCausalLMEncoder):
         super().__init__(MOLFORMER_CHECKPOINT, freeze_encoder, pretrained, **kwargs)
 
     def _initialize_encoder(self) -> None:
-        self.encoder = AutoModel.from_pretrained(
+        self.encoder = (
+            # Load IBM's trained parameters when pretrained weights are requested.
+            AutoModel.from_pretrained
+            if self.pretrained
+            # Otherwise initialize a new model from the pinned definition and configuration.
+            else lambda model_name, **kw: AutoModel.from_config(
+                AutoConfig.from_pretrained(model_name, **kw),
+                trust_remote_code=kw["trust_remote_code"],
+            )
+        )(
             self.model_name,
             trust_remote_code=True,
             revision=MOLFORMER_REVISION,
