@@ -26,6 +26,7 @@ class MolformerEncoder(HFCausalLMEncoder):
             else lambda model_name, **kw: AutoModel.from_config(
                 AutoConfig.from_pretrained(model_name, **kw),
                 trust_remote_code=kw["trust_remote_code"],
+                code_revision=kw["revision"],
             )
         )(
             self.model_name,
