@@ -206,6 +206,14 @@ def test_optimizers_are_resolvable_by_name():
 # --- molecular formula candidates ------------------------------------------
 
 
+def test_formula_parser_requires_one_complete_elemental_composition():
+    assert get_atom_counts_from_formula("C2H5OH") == {"C": 2, "H": 6, "O": 1}
+
+    for invalid in ("", "formula C2H6O", "C2H6O extra", "C0H6", "C02H6", "Xx2"):
+        with pytest.raises(ValueError):
+            get_atom_counts_from_formula(invalid)
+
+
 def test_candidate_formulas_include_the_seed_first():
     """The target molecule has exactly the seed formula, so it must be reachable."""
 
@@ -227,12 +235,6 @@ def test_candidate_formulas_include_neighbours():
     candidates = gen_close_molformulas_from_seed("C6H5Cl")
     assert "C7H7Cl" in candidates
     assert "C6H6ClN" in candidates
-
-
-def test_candidate_formulas_reject_unparseable_input():
-
-    with pytest.raises(ValueError, match="Invalid seed formula"):
-        gen_close_molformulas_from_seed("")
 
 
 # --- candidate retrieval ---------------------------------------------------
@@ -285,7 +287,7 @@ def test_faiss_source_keeps_molecules_with_the_exact_target_formula():
     assert source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl") == ["exact_match"]
 
 
-def test_faiss_source_falls_back_when_no_formula_matches():
+def test_faiss_source_returns_no_candidates_when_no_formula_matches():
 
     vectors = np.array([[1.0, 0.0]], dtype="float32")
     source = FaissCandidateSource(
@@ -294,7 +296,7 @@ def test_faiss_source_falls_back_when_no_formula_matches():
         formulas=np.array(["C99H99"]),
         n_neighbours=1,
     )
-    assert source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl") == ["only_option"]
+    assert source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl") == []
 
 
 def test_faiss_source_rejects_mismatched_metadata():

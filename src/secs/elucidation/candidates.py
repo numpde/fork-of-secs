@@ -101,8 +101,7 @@ class FaissCandidateSource:
         keep = ranked[np.isin(self.formulas[ranked], allowed)]
 
         if keep.size == 0:
-            logger.warning(f"No neighbour matched a plausible formula for {formula}; falling back to nearest neighbours.")
-            keep = ranked
+            logger.warning(f"No neighbour matched a plausible formula for {formula}.")
 
         return self.smiles[keep][:n_candidates].tolist()
 

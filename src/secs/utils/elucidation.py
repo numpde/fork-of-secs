@@ -7,20 +7,49 @@ from rdkit.Chem import rdMolDescriptors
 from scipy.interpolate import interp1d
 
 
+_MOLECULAR_FORMULA_TOKEN = re.compile(r"([A-Z][a-z]?)([1-9]\d*)?", re.ASCII)
+_ELEMENT_SYMBOLS = frozenset(
+    Chem.GetPeriodicTable().GetElementSymbol(atomic_number)
+    for atomic_number in range(1, 119)
+)
+_INVALID_FORMULA_SYNTAX = (
+    "Cannot parse the molecular formula because its complete text must contain "
+    "only element symbols and optional positive atom counts."
+)
+
+
 def get_atom_counts_from_formula(formula_string: str) -> dict[str, int]:
-    """Parses a simple molecular formula string into a dictionary of atom counts.
-    Example: "C6H12O6" -> {'C': 6, 'H': 12, 'O': 6}
+    """Parse one complete elemental formula into positive atom counts.
 
-    Args:
-        formula_string (str): Molecular formula
-
-    Returns:
-        dict[str, int]: Atom types and counts dictionary
+    The whole string must consist of recognized element symbols followed by
+    optional positive decimal counts. Rejecting partial matches keeps unrelated
+    prose and malformed counts from silently changing candidate filtering.
     """
 
+    if not isinstance(formula_string, str):
+        raise TypeError("Cannot parse the molecular formula because it is not text.")
+
     counts = defaultdict(int)
-    for element, count in re.findall(r"([A-Z][a-z]?)(\d*)", formula_string):
-        counts[element] += int(count) if count else 1
+    position = 0
+    while position < len(formula_string):
+        token = _MOLECULAR_FORMULA_TOKEN.match(formula_string, position)
+        if token is None:
+            raise ValueError(_INVALID_FORMULA_SYNTAX)
+        element, count = token.groups()
+        if element not in _ELEMENT_SYMBOLS:
+            raise ValueError(
+                "Cannot parse the molecular formula because it contains an "
+                "unrecognized element symbol."
+            )
+        try:
+            counts[element] += int(count) if count else 1
+        except ValueError as error:
+            raise ValueError(
+                "Cannot parse the molecular formula because an atom count is too large."
+            ) from error
+        position = token.end()
+    if not counts:
+        raise ValueError(_INVALID_FORMULA_SYNTAX)
     return dict(counts)
 
 
@@ -76,12 +105,7 @@ def gen_close_molformulas_from_seed(seed_formula: str) -> list[str]:
     this to restrict a candidate database, so omitting the seed would exclude
     every molecule with the target formula.
     """
-    if not seed_formula or not isinstance(seed_formula, str):
-        raise ValueError(f"Invalid seed formula: {seed_formula!r}")
-
     initial = get_atom_counts_from_formula(seed_formula)
-    if not initial or all(v <= 0 for v in initial.values()):
-        raise ValueError(f"Could not parse formula: {seed_formula!r}")
 
     # Simple delta-based transformations
     delta_sets: list[dict[str, int]] = [
