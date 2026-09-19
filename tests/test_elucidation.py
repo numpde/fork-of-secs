@@ -6,6 +6,7 @@ from secs.elucidation import (
     OPTIMIZER_RESOLVER,
     CachedObjective,
     FaissCandidateSource,
+    FaissRetrieval,
     FormulaPenalty,
     OptimizerResult,
     ScoreOnlyOptimizer,
@@ -258,8 +259,9 @@ def test_faiss_source_preserves_spectral_ranking_within_the_formula_filter():
         formulas=np.array(["C6H5Cl", "C6H5Cl", "C6H5Cl"]),
         n_neighbours=3,
     )
-    got = source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl", n_candidates=3)
-    assert got == ["best", "second", "orthogonal"]
+    got = source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl", n_candidates=2)
+    assert got.smiles == ["best", "second"]
+    assert got.retrieval == FaissRetrieval(3, 3, 3)
 
 
 def test_faiss_source_excludes_implausible_formulas():
@@ -271,7 +273,7 @@ def test_faiss_source_excludes_implausible_formulas():
         formulas=np.array(["C99H99", "C6H5Cl"]),
         n_neighbours=2,
     )
-    assert source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl", n_candidates=5) == ["right_formula"]
+    assert source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl", n_candidates=5).smiles == ["right_formula"]
 
 
 def test_faiss_source_keeps_molecules_with_the_exact_target_formula():
@@ -284,7 +286,7 @@ def test_faiss_source_keeps_molecules_with_the_exact_target_formula():
         formulas=np.array(["C6H5Cl"]),
         n_neighbours=1,
     )
-    assert source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl") == ["exact_match"]
+    assert source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl").smiles == ["exact_match"]
 
 
 def test_faiss_source_returns_no_candidates_when_no_formula_matches():
@@ -296,7 +298,9 @@ def test_faiss_source_returns_no_candidates_when_no_formula_matches():
         formulas=np.array(["C99H99"]),
         n_neighbours=1,
     )
-    assert source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl") == []
+    proposal = source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl")
+    assert proposal.smiles == []
+    assert proposal.retrieval == FaissRetrieval(1, 1, 0)
 
 
 def test_faiss_source_rejects_mismatched_metadata():
@@ -305,10 +309,38 @@ def test_faiss_source_rejects_mismatched_metadata():
         FaissCandidateSource(index=None, smiles=np.array(["a", "b"]), formulas=np.array(["C"]))
 
 
+def test_faiss_counts_exclude_padding_and_belong_to_each_proposal():
+    source = FaissCandidateSource(
+        index=_toy_index(np.array([[1.0, 0.0]], dtype="float32")),
+        smiles=np.array(["exact_match"]),
+        formulas=np.array(["C6H5Cl"]),
+        n_neighbours=8,
+    )
+    first = source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl")
+    second = source.propose(torch.tensor([1.0, 0.0]), "C99H99")
+    assert first.retrieval == FaissRetrieval(1, 1, 1)
+    assert second.retrieval == FaissRetrieval(1, 1, 0)
+    assert second.smiles == []
+
+
+def test_faiss_empty_index_reports_zero_neighbours():
+    source = FaissCandidateSource(
+        index=_toy_index(np.empty((0, 2), dtype="float32")),
+        smiles=np.array([]),
+        formulas=np.array([]),
+        n_neighbours=8,
+    )
+    proposal = source.propose(torch.tensor([1.0, 0.0]), "C6H5Cl")
+    assert proposal.smiles == []
+    assert proposal.retrieval == FaissRetrieval(0, 0, 0)
+
+
 def test_static_source_returns_its_list():
 
     source = StaticCandidateSource(["CCO", "CCC", "CC"])
-    assert source.propose(torch.tensor([1.0]), "C2H6O", n_candidates=2) == ["CCO", "CCC"]
+    proposal = source.propose(torch.tensor([1.0]), "C2H6O", n_candidates=2)
+    assert proposal.smiles == ["CCO", "CCC"]
+    assert proposal.retrieval is None
 
 
 # --- trajectory recording --------------------------------------------------

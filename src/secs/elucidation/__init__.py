@@ -7,8 +7,10 @@ from secs.elucidation.caching import (
     TrajectoryCallback,
 )
 from secs.elucidation.candidates import (
+    CandidateProposal,
     CandidateSource,
     FaissCandidateSource,
+    FaissRetrieval,
     HttpCandidateSource,
     StaticCandidateSource,
 )
@@ -45,9 +47,11 @@ __all__ = [
     "CacheState",
     "CachedObjective",
     "CallableSimulator",
+    "CandidateProposal",
     "CandidateSource",
     "EmbeddingSimilarity",
     "FaissCandidateSource",
+    "FaissRetrieval",
     "FormulaPenalty",
     "GraphGAOptimizer",
     "HttpCandidateSource",

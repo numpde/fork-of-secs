@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -9,11 +10,28 @@ from torch import Tensor
 from secs.utils.elucidation import gen_close_molformulas_from_seed
 
 
+@dataclass(frozen=True)
+class FaissRetrieval:
+    """Observed index search counts, before the starting population limit."""
+
+    index_size: int
+    neighbours_returned: int
+    formula_matches: int
+
+
+@dataclass(frozen=True)
+class CandidateProposal:
+    """Starting molecules and retrieval evidence available from their source."""
+
+    smiles: list[str]
+    retrieval: FaissRetrieval | None = None
+
+
 @runtime_checkable
 class CandidateSource(Protocol):
     """Proposes starting molecules for a search."""
 
-    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> list[str]: ...
+    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal: ...
 
 
 class StaticCandidateSource:
@@ -22,8 +40,8 @@ class StaticCandidateSource:
     def __init__(self, smiles: list[str]) -> None:
         self.smiles = smiles
 
-    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> list[str]:  # noqa: ARG002
-        return self.smiles[:n_candidates]
+    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal:  # noqa: ARG002
+        return CandidateProposal(self.smiles[:n_candidates])
 
 
 class FaissCandidateSource:
@@ -90,11 +108,11 @@ class FaissCandidateSource:
         found = neighbours[0]
         return found[found >= 0]  # FAISS pads short results with -1
 
-    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> list[str]:
+    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal:
         ranked = self._search(target_embedding)
         if ranked.size == 0:
             logger.warning("Candidate search returned no neighbours.")
-            return []
+            return CandidateProposal([], FaissRetrieval(self.index.ntotal, 0, 0))
 
         allowed = gen_close_molformulas_from_seed(formula)
         # np.isin over the neighbour slice only -- not over the whole database.
@@ -103,7 +121,10 @@ class FaissCandidateSource:
         if keep.size == 0:
             logger.warning(f"No neighbour matched a plausible formula for {formula}.")
 
-        return self.smiles[keep][:n_candidates].tolist()
+        return CandidateProposal(
+            self.smiles[keep][:n_candidates].tolist(),
+            FaissRetrieval(self.index.ntotal, int(ranked.size), int(keep.size)),
+        )
 
 
 class HttpCandidateSource:
@@ -113,7 +134,7 @@ class HttpCandidateSource:
         self.url = url
         self.timeout = timeout
 
-    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> list[str]:
+    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal:
         import requests  # noqa: PLC0415
 
         embedding = torch.nn.functional.normalize(target_embedding.detach().cpu().flatten(), p=2, dim=0)
@@ -127,4 +148,4 @@ class HttpCandidateSource:
             timeout=self.timeout,
         )
         response.raise_for_status()
-        return response.json()["smiles"][:n_candidates]
+        return CandidateProposal(response.json()["smiles"][:n_candidates])
