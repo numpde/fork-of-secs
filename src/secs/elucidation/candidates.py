@@ -1,3 +1,5 @@
+"""Supply starting molecules and any retrieval evidence exposed by their source."""
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -12,7 +14,10 @@ from secs.utils.elucidation import gen_close_molformulas_from_seed
 
 @dataclass(frozen=True)
 class FaissRetrieval:
-    """Observed index search counts, before the starting population limit."""
+    """Observed counts for one index search, before the starting population limit.
+
+    Formula matches count only retrieved neighbours, not the whole index.
+    """
 
     index_size: int
     neighbours_returned: int
@@ -21,7 +26,11 @@ class FaissRetrieval:
 
 @dataclass(frozen=True)
 class CandidateProposal:
-    """Starting molecules and retrieval evidence available from their source."""
+    """Starting molecules and optional source-owned retrieval evidence.
+
+    Absent retrieval evidence means the source does not expose these counts;
+    it does not mean that no neighbours were found.
+    """
 
     smiles: list[str]
     retrieval: FaissRetrieval | None = None
@@ -31,16 +40,22 @@ class CandidateProposal:
 class CandidateSource(Protocol):
     """Proposes starting molecules for a search."""
 
-    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal: ...
+    def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal:
+        """Return a starting population and any source-owned retrieval evidence.
+
+        An empty population means this proposal supplies no starting molecules.
+        """
+        ...
 
 
 class StaticCandidateSource:
-    """Returns a fixed list. Useful for tests and for replaying a known population."""
+    """Propose molecules from a fixed list, for tests or replaying a known population."""
 
     def __init__(self, smiles: list[str]) -> None:
         self.smiles = smiles
 
     def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal:  # noqa: ARG002
+        """Return the fixed population up to the requested limit, without retrieval counts."""
         return CandidateProposal(self.smiles[:n_candidates])
 
 
@@ -109,6 +124,7 @@ class FaissCandidateSource:
         return found[found >= 0]  # FAISS pads short results with -1
 
     def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal:
+        """Return formula-compatible neighbours in search order, with counts before population truncation."""
         ranked = self._search(target_embedding)
         if ranked.size == 0:
             logger.warning("Candidate search returned no neighbours.")
@@ -135,6 +151,10 @@ class HttpCandidateSource:
         self.timeout = timeout
 
     def propose(self, target_embedding: Tensor, formula: str, n_candidates: int = 2048) -> CandidateProposal:
+        """Request candidates with an L2-normalized embedding, without local FAISS counts.
+
+        Request and response errors propagate to the caller.
+        """
         import requests  # noqa: PLC0415
 
         embedding = torch.nn.functional.normalize(target_embedding.detach().cpu().flatten(), p=2, dim=0)
